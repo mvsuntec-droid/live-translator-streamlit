@@ -1,39 +1,59 @@
 import streamlit as st
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
 from openai import OpenAI
+import numpy as np
+import av
 import tempfile
 
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 st.title("Live English ↔ Spanish Translator")
 
-audio_file = st.file_uploader("Record or upload audio", type=["wav","mp3","m4a"])
+class AudioProcessor(AudioProcessorBase):
 
-if audio_file:
+    def recv(self, frame):
 
-    st.audio(audio_file)
+        audio = frame.to_ndarray()
 
-    transcript = client.audio.transcriptions.create(
-        model="gpt-4o-mini-transcribe",
-        file=audio_file
-    )
+        temp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
 
-    text = transcript.text
+        import scipy.io.wavfile as wav
+        wav.write(temp.name, 16000, audio)
 
-    st.write("You said:", text)
+        transcript = client.audio.transcriptions.create(
+            model="gpt-4o-mini-transcribe",
+            file=open(temp.name,"rb")
+        )
 
-    translated = client.responses.create(
-        model="gpt-4o-mini",
-        input=f"Translate English to Spanish or Spanish to English: {text}"
-    )
+        text = transcript.text
 
-    translated_text = translated.output_text
+        translated = client.responses.create(
+            model="gpt-4o-mini",
+            input=f"Translate English to Spanish or Spanish to English: {text}"
+        )
 
-    st.write("Translated:", translated_text)
+        translated_text = translated.output_text
 
-    speech = client.audio.speech.create(
-        model="gpt-4o-mini-tts",
-        voice="alloy",
-        input=translated_text
-    )
+        speech = client.audio.speech.create(
+            model="gpt-4o-mini-tts",
+            voice="alloy",
+            input=translated_text
+        )
 
-    st.audio(speech)
+        st.write("Original:", text)
+        st.write("Translated:", translated_text)
+
+        return frame
+
+
+webrtc_streamer(
+
+    key="translator",
+
+    mode=WebRtcMode.SENDRECV,
+
+    audio_processor_factory=AudioProcessor,
+
+    media_stream_constraints={"audio":True,"video":False},
+
+)

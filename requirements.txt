@@ -3,3 +3,5 @@ streamlit-webrtc
 openai
 av
 numpy
+scipy
+aiortc

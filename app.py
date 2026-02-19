@@ -1,42 +1,20 @@
 import streamlit as st
-import sounddevice as sd
-import numpy as np
-import tempfile
-import scipy.io.wavfile as wav
 from openai import OpenAI
-import base64
+import tempfile
 
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 st.title("Live English ↔ Spanish Translator")
 
-duration = st.slider("Recording duration", 1, 10, 5)
+audio_file = st.file_uploader("Record or upload audio", type=["wav","mp3","m4a"])
 
-if st.button("Start Speaking"):
+if audio_file:
 
-    st.write("Listening...")
-
-    fs = 16000
-
-    recording = sd.rec(
-        int(duration * fs),
-        samplerate=fs,
-        channels=1
-    )
-
-    sd.wait()
-
-    temp_file = tempfile.NamedTemporaryFile(delete=False)
-
-    wav.write(
-        temp_file.name,
-        fs,
-        recording
-    )
+    st.audio(audio_file)
 
     transcript = client.audio.transcriptions.create(
         model="gpt-4o-mini-transcribe",
-        file=open(temp_file.name,"rb")
+        file=audio_file
     )
 
     text = transcript.text
@@ -58,6 +36,4 @@ if st.button("Start Speaking"):
         input=translated_text
     )
 
-    audio_bytes = speech
-
-    st.audio(audio_bytes)
+    st.audio(speech)
